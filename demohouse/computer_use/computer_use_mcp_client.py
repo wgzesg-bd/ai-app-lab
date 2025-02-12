@@ -114,42 +114,35 @@ class MCPClient:
         tool_results = []
         final_text = []
 
-        assistant_message_content = []
         while response:
-            dd = response.choices[0].message
-            assistant_message = dd.content
-            new_ark_message = convert_response_message(response.choices[0].message)
+            msg = response.choices[0].message
+            new_ark_message = convert_response_message(msg)
             pretty_print_message(new_ark_message)
             messages.append(new_ark_message)
-            if assistant_message:
-                final_text.append(assistant_message)
-                assistant_message_content.append(assistant_message)
-            response = None
-            if dd.tool_calls:
-                tool_calls = dd.tool_calls
-                for tool_call in tool_calls:
-                    tool_name = tool_call.function.name
-                    tool_args = json.loads(tool_call.function.arguments)
-                    # Execute tool call
-                    result = await self.session.call_tool(tool_name, tool_args)
-                    tool_results.append({"call": tool_name, "result": result})
-                    final_text.append(f"[Calling tool {tool_name} with args {tool_args}]")
+            if msg.content:
+                final_text.append(msg.content)
 
-                tool_response = ArkMessage(
-                        role="tool",
-                        tool_call_id=tool_call.id,
-                        content=create_tool_response(result)
-                    )
-                pretty_print_message(tool_response)
-                messages.append(tool_response)
-                llm = BaseChatLanguageModel(
-                    endpoint_id=LLM_ENDPOINT,
-                    messages=messages,
-                    parameters=parameters,
-                    client=modelClient,
-                )
-                response = await llm.arun()
+            if not msg.tool_calls:
+                # no more tool calls, break
+                break
+            tool_calls = msg.tool_calls
+            for tool_call in tool_calls:
+                tool_name = tool_call.function.name
+                tool_args = json.loads(tool_call.function.arguments)
+                # Execute tool call
+                result = await self.session.call_tool(tool_name, tool_args)
+                tool_results.append({"call": tool_name, "result": result})
+                final_text.append(f"[Calling tool {tool_name} with args {tool_args}]")
 
+            tool_response = ArkMessage(
+                role="tool",
+                tool_call_id=tool_call.id,
+                content=create_tool_response(result)
+            )
+            pretty_print_message(tool_response)
+            messages.append(tool_response)
+            llm.messages = messages
+            response = await llm.arun()
         return final_text
 
     async def chat_loop(self):

@@ -1,5 +1,3 @@
-from typing import Any, Optional
-import httpx
 from local_bash_executor import LocalBashExecutor
 from mcp.server.fastmcp import FastMCP
 
