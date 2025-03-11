@@ -173,7 +173,7 @@ curl --location 'http://localhost:8080/api/v3/bots/chat/completions' \
 }
 ```
 
-### 插件调用
+### 工具调用（Function Calling）
 
 1. 安装 arkitect
 
