@@ -27,6 +27,13 @@ from volcenginesdkarkruntime.types.chat.chat_completion_message import (
 )
 
 from arkitect.core.component.tool.tool_pool import ToolPool
+from arkitect.types.llm.model import ArkMessage
+from arkitect.types.responses.event import (
+    BaseEvent,
+    OutputTextEvent,
+    ReasoningEvent,
+    StateUpdateEvent,
+)
 
 from .model import State
 
@@ -94,6 +101,82 @@ class _AsyncCompletions(AsyncCompletions):
                 ]
 
             return iterator()
+
+    async def create_event_stream(
+        self,
+        model: str,
+        messages: List[ChatCompletionMessageParam],
+        tool_pool: ToolPool | None = None,
+        **kwargs: Dict[str, Any],
+    ) -> AsyncIterable[BaseEvent]:
+        parameters = (
+            self._state.parameters.__dict__
+            if self._state.parameters is not None
+            else {}
+        )
+        if tool_pool:
+            tools = await tool_pool.list_tools()
+            parameters["tools"] = [t.model_dump() for t in tools]
+        resp = await super().create(
+            model=model,
+            messages=messages,
+            stream=True,
+            **parameters,
+            **kwargs,
+        )
+
+        async def iterator() -> AsyncIterable[BaseEvent]:
+            final_tool_calls = {}
+            chat_completion_messages = ChatCompletionMessage(
+                role="assistant",
+                content="",
+                tool_calls=[],
+            )
+            async for chunk in resp:
+                if len(chunk.choices) > 0:
+                    if chunk.choices[0].delta.content:
+                        chat_completion_messages.content += chunk.choices[
+                            0
+                        ].delta.content
+                    if chunk.choices[0].delta.tool_calls:
+                        for tool_call in chunk.choices[0].delta.tool_calls:
+                            index = tool_call.index
+                            if index not in final_tool_calls:
+                                final_tool_calls[index] = tool_call
+                            else:
+                                final_tool_calls[
+                                    index
+                                ].function.arguments += tool_call.function.arguments
+                if chunk := self._convert_to_event(chunk):
+                    yield chunk
+            chat_completion_messages.tool_calls = [
+                v.model_dump() for v in final_tool_calls.values()
+            ]
+            yield StateUpdateEvent(
+                message_delta=[
+                    ArkMessage(
+                        content=chat_completion_messages.content,
+                        role=chat_completion_messages.role,
+                        tool_calls=chat_completion_messages.tool_calls,
+                    )
+                ]
+            )
+
+        return iterator()
+
+    def _convert_to_event(self, chunk: ChatCompletionChunk) -> BaseEvent | None:
+        event = None
+        if chunk.choices and chunk.choices[0].delta:
+            delta = chunk.choices[0].delta
+            if delta.content:
+                event = OutputTextEvent(
+                    delta=delta.content,
+                )
+            elif delta.reasoning_content:
+                event = ReasoningEvent(
+                    delta=delta.reasoning_content,
+                )
+        return event
 
 
 class _AsyncChat(AsyncChat):
