@@ -28,13 +28,6 @@ Agent is the core interface for all runnable agents
 
 
 class DefaultAgent(BaseAgent):
-    name: str
-    description: str = ""
-    model: str
-    tools: list[Union[MCPClient | Callable]] = []
-    sub_agents: list["BaseAgent"] = []
-    mcp_clients: dict[str, MCPClient] = {}
-
     model_config = {
         "arbitrary_types_allowed": True,
     }

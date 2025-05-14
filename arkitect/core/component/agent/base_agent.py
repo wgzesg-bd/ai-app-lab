@@ -50,7 +50,6 @@ class BaseAgent(abc.ABC, BaseModel):
     model: str
     tools: list[Union[MCPClient | Callable]] = []
     sub_agents: list["BaseAgent"] = []
-    mcp_clients: dict[str, MCPClient] = {}
     instruction: str | None = None
 
     pre_agent_call_hook: PreAgentCallHook | None = None
