@@ -67,12 +67,12 @@ async def classify_and_recommend(
     output = ""
     response = {}
     async for chunk in stream_resp:
-        print(chunk)
         if len(chunk.choices) == 0:
-            if chunk.get("metadata"):
-                if chunk.metadata.get("response"):
-                    response = chunk.metadata.get("response")
             print(chunk)
+            # if chunk.get("metadata"):
+            #     if chunk.metadata.get("response"):
+            #         response = chunk.metadata.get("response")
+            # print(chunk)
         elif chunk.choices[0].delta.model_extra.get("reasoning_content"):
             if not thinking:
                 print("\n----思考过程----\n")

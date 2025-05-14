@@ -17,12 +17,6 @@ from typing import AsyncIterable
 
 from tools import get_commute_duration, get_instructions, web_search
 
-# InMemoryMemoryServiceSingleton,
-# InMemoryMemoryService as MemoryService,
-from volcenginesdkarkruntime.types.chat.chat_completion_message import (
-    ChatCompletionMessage,
-)
-
 from arkitect.core.component.agent import DefaultAgent
 from arkitect.core.component.checkpoint import (
     InMemoryCheckpointService,
@@ -73,7 +67,8 @@ def preprocess_reqeusts(messages: list[ArkMessage]) -> list[ArkMessage]:
             "text": messages[-1].content,
         }
     )
-    return [ArkMessage(role="user", content=refined_messages)]
+    return messages
+    # return [ArkMessage(role="user", content=refined_messages)]
 
 
 async def update_memory(

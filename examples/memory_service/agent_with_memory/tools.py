@@ -16,14 +16,14 @@ APP_NAME = "property_agent"
 
 # --- Placeholder Tools ---
 def get_commute_duration(
-    start_address: str, end_address: str, mode: str = "driving"
+    start_address: str,
+    end_address: str,
 ) -> dict[str, str]:
     """
     Google Maps API to find commute duration.
     Args:
         start_address (str): The starting address.
         end_address (str): The destination address.
-        mode (str): Commute mode (e.g., driving, transit, walking).
     Returns:
         dict: A dictionary containing commute duration and distance.
     """
