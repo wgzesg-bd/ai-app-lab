@@ -18,7 +18,7 @@ from pydantic import BaseModel
 
 from arkitect.core.component.agent import BaseAgent
 from arkitect.core.component.context.llm_event_stream import LLMEventStream
-from arkitect.core.component.context.model import State
+from arkitect.core.component.llm_event_stream.model import NewState
 from arkitect.core.component.tool import MCPClient
 from arkitect.types.responses.event import BaseEvent
 
@@ -40,7 +40,9 @@ class DefaultAgent(BaseAgent):
     }
 
     # stream run step
-    async def _astream(self, state: State, **kwargs: Any) -> AsyncIterable[BaseEvent]:
+    async def _astream(
+        self, state: NewState, **kwargs: Any
+    ) -> AsyncIterable[BaseEvent]:
         event_stream = LLMEventStream(
             model=self.model,
             agent_name=self.name,

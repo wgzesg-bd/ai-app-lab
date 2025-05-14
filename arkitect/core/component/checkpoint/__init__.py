@@ -12,20 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from arkitect.core.component.checkpoint.base_checkpoint_store import BaseCheckpointStore
-from arkitect.core.component.checkpoint.in_memory_checkpoint_store import (
-    InMemoryCheckpointStore,
+from arkitect.core.component.checkpoint.base_checkpoint_service import (
+    BaseCheckpointService,
+)
+from arkitect.core.component.checkpoint.in_memory_checkpoint_service import (
+    InMemoryCheckpointService,
     InMemoryCheckpointStoreSingleton,
 )
-from arkitect.core.component.checkpoint.redis_checkpoint_store import (
-    RedisCheckpointStore,
+from arkitect.core.component.checkpoint.redis_checkpoint_service import (
+    RedisCheckpointService,
     RedisCheckpointStoreSingleton,
 )
 
 __all__ = [
-    "BaseCheckpointStore",
-    "InMemoryCheckpointStore",
+    "BaseCheckpointService",
+    "InMemoryCheckpointService",
     "InMemoryCheckpointStoreSingleton",
-    "RedisCheckpointStore",
+    "RedisCheckpointService",
     "RedisCheckpointStoreSingleton",
 ]

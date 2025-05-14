@@ -56,6 +56,17 @@ class RedisClient(Client):
         """
         return await self.client.get(key)
 
+    async def set(self, key: str, value: str) -> None:
+        """
+        Set the value of a key in the Redis database.
+        Args:
+        key (str): The key to set in the Redis database.
+        value (str): The value to set for the key.
+        Returns:
+        None.
+        """
+        await self.client.set(key, value)
+
     async def get_with_prefix(self, prefix: str) -> tuple[list[str], list[str]]:
         """
         Asynchronous method to obtain all keys and values from the
@@ -98,3 +109,13 @@ class RedisClient(Client):
 
         """
         return await self.client.mget(keys)
+
+    async def delete(self, key: str) -> None:
+        """
+        Delete a key from the Redis database.
+        Args:
+        key (str): The key to delete from the Redis database.
+        Returns:
+        None.
+        """
+        await self.client.delete(key)

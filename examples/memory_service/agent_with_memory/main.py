@@ -25,7 +25,7 @@ from volcenginesdkarkruntime.types.chat.chat_completion_message import (
 
 from arkitect.core.component.agent import DefaultAgent
 from arkitect.core.component.checkpoint import (
-    InMemoryCheckpointStore,
+    InMemoryCheckpointService,
     InMemoryCheckpointStoreSingleton,
 )
 from arkitect.core.component.memory import (
@@ -84,7 +84,7 @@ async def agent_task(
     )
     user_id = request.metadata.get("user_id")
 
-    checkpoint_store: InMemoryCheckpointStore = (
+    checkpoint_store: InMemoryCheckpointService = (
         InMemoryCheckpointStoreSingleton.get_instance_sync()
     )
 

@@ -14,16 +14,27 @@
 
 from datetime import datetime
 
-from arkitect.core.component.checkpoint.base_checkpoint_store import BaseCheckpointStore
+from arkitect.core.client.redis import RedisClient
+from arkitect.core.component.checkpoint.base_checkpoint_service import (
+    BaseCheckpointService,
+)
 from arkitect.core.component.checkpoint.checkpoint import Checkpoint
-from arkitect.core.component.context.model import State
+from arkitect.core.component.llm_event_stream.model import NewState
 from arkitect.utils.common import Singleton
 
 
-class InMemoryCheckpointStore(BaseCheckpointStore):
-    def __init__(self):
+def make_key(app_name: str, checkpoint_id: str) -> str:
+    return f"{app_name}:{checkpoint_id}"
+
+
+class RedisCheckpointService(BaseCheckpointService):
+    def __init__(self, host: str, username: str, password: str):
         # A map from app name to a map from user ID to a map from session ID to session.
-        self.checkpoints: dict[str, dict[str, Checkpoint]] = {}
+        self.redis_client = RedisClient(
+            host=host,
+            username=username,
+            password=password,
+        )
 
     async def create_checkpoint(
         self,
@@ -35,36 +46,40 @@ class InMemoryCheckpointStore(BaseCheckpointStore):
             Checkpoint(
                 id=checkpoint_id,
                 app_name=app_name,
-                state=State(),
+                state=NewState(),
                 last_update_time=datetime.now().timestamp(),
                 create_time=datetime.now().timestamp(),
             )
             if not checkpoint
             else checkpoint
         )
-        if app_name not in self.checkpoints:
-            self.checkpoints[app_name] = {}
-
-        self.checkpoints[app_name][checkpoint_id] = checkpoint
-
+        key = make_key(app_name, checkpoint_id)
+        if await self.redis_client.get(key) is None:
+            await self.redis_client.set(key, checkpoint.model_dump_json())
         return checkpoint
 
     async def get_checkpoint(self, app_name: str, checkpoint_id: str) -> Checkpoint:
-        return self.checkpoints.get(app_name, {}).get(checkpoint_id, None)
+        value = await self.redis_client.get(make_key(app_name, checkpoint_id))
+        if value is None:
+            return None
+        return Checkpoint.model_validate_json(value)
 
     async def list_checkpoints(self, app_name: str) -> list[Checkpoint]:
-        return list(self.checkpoints.get(app_name, {}).values())
+        keys, values = await self.redis_client.get_with_prefix(make_key(app_name, "*"))
+        return [Checkpoint.model_validate_json(value) for value in values]
 
     async def update_checkpoint(
         self, app_name: str, checkpoint_id: str, checkpoint: Checkpoint
     ) -> None:
         checkpoint.last_update_time = datetime.now().timestamp()
-        self.checkpoints[app_name][checkpoint_id] = checkpoint
+        await self.redis_client.set(
+            make_key(app_name, checkpoint_id), checkpoint.model_dump_json()
+        )
 
     async def delete_checkpoint(self, app_name: str, checkpoint_id: str) -> None:
-        if app_name in self.checkpoints and checkpoint_id in self.checkpoints[app_name]:
-            del self.checkpoints[app_name][checkpoint_id]
+        if await self.redis_client.get(make_key(app_name, checkpoint_id)) is not None:
+            await self.redis_client.delete(make_key(app_name, checkpoint_id))
 
 
-class InMemoryCheckpointStoreSingleton(InMemoryCheckpointStore, Singleton):
+class RedisCheckpointStoreSingleton(RedisCheckpointService, Singleton):
     pass

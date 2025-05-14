@@ -14,7 +14,7 @@
 
 from pydantic import BaseModel, ConfigDict
 
-from arkitect.core.component.context.model import State
+from arkitect.core.component.llm_event_stream.model import NewState
 
 
 class Checkpoint(BaseModel):
@@ -37,7 +37,9 @@ class Checkpoint(BaseModel):
     """The unique identifier of the checkpoint."""
     app_name: str
     """The name of the app."""
-    state: State | None = None
+    user_id: str
+    """The user id of the checkpoint."""
+    state: NewState | None = None
     """The state of the checkpoint."""
     last_update_time: float = 0.0
     """The last update time of the checkpoint."""

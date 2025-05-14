@@ -26,9 +26,10 @@
 from typing import AsyncIterable
 
 from arkitect.core.component.agent import BaseAgent
-from arkitect.core.component.checkpoint import BaseCheckpointStore
+from arkitect.core.component.checkpoint import BaseCheckpointService
 from arkitect.core.component.checkpoint.checkpoint import Checkpoint
-from arkitect.core.component.context.model import State
+from arkitect.core.component.llm_event_stream.model import NewState
+from arkitect.core.component.memory.base_memory_service import BaseMemoryService
 from arkitect.telemetry.logger import ERROR
 from arkitect.types.llm.model import ArkMessage
 from arkitect.types.responses.event import BaseEvent, StateUpdateEvent
@@ -39,11 +40,13 @@ class Runner:
         self,
         app_name: str,
         agent: BaseAgent,
-        checkpoint_store: BaseCheckpointStore,
+        checkpoint_store: BaseCheckpointService | None = None,
+        memory_service: BaseMemoryService | None = None,
     ):
         self.app_name = app_name
         self.agent = agent
-        self.checkpoint_store = checkpoint_store
+        self.checkpoint_service = checkpoint_store
+        self.memory_service = memory_service
 
     async def run(self, checkpoint_id: str, messages: list[ArkMessage] | None = None):
         checkpoint: Checkpoint = await self.get_or_create_checkpoint(
@@ -55,24 +58,30 @@ class Runner:
             if isinstance(chunk, BaseEvent):
                 yield chunk
 
+    async def store_memory(self, user_id: str, event: StateUpdateEvent):
+        if event.message_delta:
+            await self.memory_service.update_memory(user_id, event.message_delta)
+
     async def process_event(
-        self, event: BaseEvent, state: State, checkpoint: Checkpoint
+        self, event: BaseEvent, state: NewState, checkpoint: Checkpoint
     ) -> AsyncIterable[BaseEvent]:
         if isinstance(event, StateUpdateEvent):
             if event.details_delta is not None:
                 state.details.update(event.details_delta)
             if event.message_delta is not None:
-                state.messages.extend(event.message_delta)
                 state.events.append(event)
-            await self.checkpoint_store.update_checkpoint(
-                self.app_name, checkpoint.id, checkpoint
-            )
+            if self.checkpoint_service:
+                await self.checkpoint_service.update_checkpoint(
+                    self.app_name, checkpoint.id, checkpoint
+                )
+            if self.memory_service:
+                await self.store_memory(user_id=checkpoint.user_id, event=event)
             return
         yield event
 
     async def __run(
         self,
-        state: State,
+        state: NewState,
         checkpoint: Checkpoint,
         messages: list[ArkMessage] | None = None,
     ) -> AsyncIterable[BaseEvent]:
@@ -90,16 +99,19 @@ class Runner:
         except Exception as e:
             ERROR(f"I have error: {e}")
         finally:
-            await self.checkpoint_store.update_checkpoint(
-                self.app_name, checkpoint.id, checkpoint
-            )
+            if self.checkpoint_service:
+                await self.checkpoint_service.update_checkpoint(
+                    self.app_name, checkpoint.id, checkpoint
+                )
 
     async def get_or_create_checkpoint(self, checkpoint_id: str) -> Checkpoint:
-        checkpoint = await self.checkpoint_store.get_checkpoint(
+        if not self.checkpoint_service:
+            return Checkpoint(id=checkpoint_id)
+        checkpoint = await self.checkpoint_service.get_checkpoint(
             app_name=self.app_name, checkpoint_id=checkpoint_id
         )
         if checkpoint is None:
-            checkpoint = await self.checkpoint_store.create_checkpoint(
+            checkpoint = await self.checkpoint_service.create_checkpoint(
                 app_name=self.app_name,
                 checkpoint_id=checkpoint_id,
             )

@@ -17,7 +17,7 @@ from abc import ABC, abstractmethod
 from arkitect.core.component.checkpoint.checkpoint import Checkpoint
 
 
-class BaseCheckpointStore(ABC):
+class BaseCheckpointService(ABC):
     @abstractmethod
     def create_checkpoint(
         self,
