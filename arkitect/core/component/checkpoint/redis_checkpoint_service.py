@@ -40,12 +40,14 @@ class RedisCheckpointService(BaseCheckpointService):
         self,
         app_name: str,
         checkpoint_id: str,
+        user_id: str,
         checkpoint: Checkpoint | None = None,
     ) -> Checkpoint:
         checkpoint = (
             Checkpoint(
                 id=checkpoint_id,
                 app_name=app_name,
+                user_id=user_id,
                 state=NewState(),
                 last_update_time=datetime.now().timestamp(),
                 create_time=datetime.now().timestamp(),

@@ -30,6 +30,7 @@ from arkitect.core.component.checkpoint import BaseCheckpointService
 from arkitect.core.component.checkpoint.checkpoint import Checkpoint
 from arkitect.core.component.llm_event_stream.model import NewState
 from arkitect.core.component.memory.base_memory_service import BaseMemoryService
+from arkitect.core.component.runner.config import RunnerConfig, MemoryUpdateSetting
 from arkitect.telemetry.logger import ERROR
 from arkitect.types.llm.model import ArkMessage
 from arkitect.types.responses.event import BaseEvent, StateUpdateEvent
@@ -42,11 +43,13 @@ class Runner:
         agent: BaseAgent,
         checkpoint_service: BaseCheckpointService | None = None,
         memory_service: BaseMemoryService | None = None,
+        config: RunnerConfig = RunnerConfig(),
     ):
         self.app_name = app_name
         self.agent = agent
         self.checkpoint_service = checkpoint_service
         self.memory_service = memory_service
+        self.config = config
 
     async def run(
         self,
@@ -64,8 +67,16 @@ class Runner:
                 yield chunk
 
     async def store_memory(self, user_id: str, event: StateUpdateEvent):
-        if event.message_delta:
-            await self.memory_service.update_memory(user_id, event.message_delta)
+        if (
+            event.message_delta
+            and self.config.memory_update_behavior != MemoryUpdateSetting.NO_AUTO_UPDATE
+        ):
+            await self.memory_service.update_memory(
+                user_id,
+                event.message_delta,
+                blocking=self.config.memory_update_behavior
+                == MemoryUpdateSetting.BLOCKING,
+            )
 
     async def process_event(
         self, event: BaseEvent, state: NewState, checkpoint: Checkpoint

@@ -23,6 +23,7 @@ class BaseCheckpointService(ABC):
         self,
         app_name: str,
         checkpoint_id: str,
+        user_id: str,
         checkpoint: Checkpoint | None = None,
     ) -> Checkpoint:
         pass

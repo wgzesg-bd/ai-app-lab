@@ -25,11 +25,10 @@ from arkitect.core.component.memory import Mem0MemoryServiceSingleton
 # )
 from arkitect.launcher.local.serve import launch_serve
 from arkitect.telemetry.trace import task
-from arkitect.types.llm.model import ArkChatCompletionChunk, ArkChatRequest, ArkMessage
+from arkitect.types.llm.model import ArkChatCompletionChunk, ArkChatRequest
 from responses_client import (
     ResponsesClientWithLongTermMemory,
 )
-from openai.types.responses.response_input_param import ResponseInputParam
 
 
 def convert_chunk(chunk: ResponseStreamEvent) -> ArkChatCompletionChunk | None:

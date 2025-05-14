@@ -27,6 +27,7 @@ def make_inital_user_profile_setup(user_feedback: str, user_id: str) -> dict:
     return {
         "messages": [
             {"role": "user", "content": user_feedback},
+            {"role": "user", "content": user_feedback},
         ],
         "model": "abc",
         "stream": True,
@@ -64,12 +65,14 @@ async def classify_and_recommend(
     thinking = False
     reasoning_ouput = ""
     output = ""
-    response = None
+    response = {}
     async for chunk in stream_resp:
         print(chunk)
         if len(chunk.choices) == 0:
-            if chunk.metadata.get("response"):
-                response = chunk.metadata.get("response")
+            if chunk.get("metadata"):
+                if chunk.metadata.get("response"):
+                    response = chunk.metadata.get("response")
+            print(chunk)
         elif chunk.choices[0].delta.model_extra.get("reasoning_content"):
             if not thinking:
                 print("\n----思考过程----\n")

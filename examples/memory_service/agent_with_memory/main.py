@@ -76,18 +76,34 @@ def preprocess_reqeusts(messages: list[ArkMessage]) -> list[ArkMessage]:
     return [ArkMessage(role="user", content=refined_messages)]
 
 
-async def agent_task(
-    request: ArkChatRequest, mem_service: MemoryService
-) -> AsyncIterable[ArkChatCompletionChunk]:
+async def update_memory(
+    user_id: str,
+    messages: list[ArkMessage],
+    mem_service: MemoryService,
+) -> None:
+    return await mem_service.update_memory(
+        user_id=user_id,
+        new_messages=messages,
+    )
+
+
+@task(distributed=False)
+async def main(request: ArkChatRequest) -> AsyncIterable[ArkChatCompletionChunk]:
+    user_id = request.metadata.get("user_id")
     logging.basicConfig(
         level=logging.DEBUG,
     )
-    user_id = request.metadata.get("user_id")
 
-    checkpoint_store: InMemoryCheckpointService = (
+    checkpoint_service: InMemoryCheckpointService = (
         InMemoryCheckpointStoreSingleton.get_instance_sync()
     )
+    mem_service: MemoryService = Mem0MemoryServiceSingleton.get_instance_sync()
 
+    if len(request.messages) == 2:
+        await update_memory(
+            user_id=user_id, messages=[request.messages[-1]], mem_service=mem_service
+        )
+        return
     house_agent = DefaultAgent(
         model=MODELS["default"],
         name="Housing Agent",
@@ -97,40 +113,15 @@ async def agent_task(
     runner = Runner(
         app_name=APP_NAME,
         agent=house_agent,
-        checkpoint_service=checkpoint_store,
+        checkpoint_service=checkpoint_service,
+        memory_service=mem_service,
     )
     checkpoint_id = str(uuid.uuid4())
-    checkpoint = await runner.get_or_create_checkpoint(checkpoint_id)
-    await checkpoint_store.update_checkpoint(APP_NAME, checkpoint_id, checkpoint)
     messages = preprocess_reqeusts(request.messages)
-    async for resp in runner.run(checkpoint_id, messages=messages):
+    async for resp in runner.run(
+        checkpoint_id=checkpoint_id, messages=messages, user_id=user_id
+    ):
         yield event_to_ark_chat_completion_chunks(resp)
-
-
-async def update_memory(
-    user_id: str, messages: list[ChatCompletionMessage], mem_service: MemoryService
-) -> None:
-    return await mem_service.add_or_update_memory(
-        user_id=user_id,
-        new_messages=messages,
-    )
-
-
-@task(distributed=False)
-async def main(request: ArkChatRequest) -> AsyncIterable[ArkChatCompletionChunk]:
-    user_id = request.metadata["user_id"]
-    # mem_service: MemoryService = InMemoryMemoryServiceSingleton.get_instance_sync()
-    mem_service: MemoryService = Mem0MemoryServiceSingleton.get_instance_sync()
-
-    if len(request.messages) == 1:
-        async for resp in agent_task(request, mem_service):
-            yield resp
-    else:
-        await update_memory(
-            user_id=user_id,
-            messages=request.messages[1:],
-            mem_service=mem_service,
-        )
 
 
 if __name__ == "__main__":

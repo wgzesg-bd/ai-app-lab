@@ -12,14 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, AsyncIterable, Callable, Union
+from typing import Any, AsyncIterable
 
 from pydantic import BaseModel
 
 from arkitect.core.component.agent import BaseAgent
-from arkitect.core.component.context.llm_event_stream import LLMEventStream
+from arkitect.core.component.llm_event_stream.llm_event_stream import LLMEventStream
 from arkitect.core.component.llm_event_stream.model import NewState
-from arkitect.core.component.tool import MCPClient
 from arkitect.types.responses.event import BaseEvent
 
 """

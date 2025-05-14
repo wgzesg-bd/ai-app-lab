@@ -21,7 +21,6 @@ from arkitect.types.responses.event import StateUpdateEvent
 
 
 class NewState(BaseModel):
-    checkpoint_id: str = ""
 
     context_id: Optional[str] = Field(default=None)
     parameters: Optional[ArkChatParameters] = Field(default=None)

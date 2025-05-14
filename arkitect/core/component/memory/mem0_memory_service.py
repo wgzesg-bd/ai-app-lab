@@ -60,6 +60,7 @@ default_ark_config = Mem0Config(
             "model": DEFAULT_LLM_MODEL,
             "openai_base_url": DEFAULT_BASE_URL,
             "api_key": os.getenv("ARK_API_KEY"),
+            "enable_vision": True,
         },
     ),
     vector_store=VectorStoreConfig(config={"embedding_model_dims": 2560}),
