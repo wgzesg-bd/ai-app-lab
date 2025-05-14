@@ -17,7 +17,7 @@ from arkitect.core.component.checkpoint.base_checkpoint_service import (
 )
 from arkitect.core.component.checkpoint.in_memory_checkpoint_service import (
     InMemoryCheckpointService,
-    InMemoryCheckpointStoreSingleton,
+    InMemoryCheckpointServiceSingleton,
 )
 from arkitect.core.component.checkpoint.redis_checkpoint_service import (
     RedisCheckpointService,
@@ -27,7 +27,7 @@ from arkitect.core.component.checkpoint.redis_checkpoint_service import (
 __all__ = [
     "BaseCheckpointService",
     "InMemoryCheckpointService",
-    "InMemoryCheckpointStoreSingleton",
+    "InMemoryCheckpointServiceSingleton",
     "RedisCheckpointService",
     "RedisCheckpointStoreSingleton",
 ]

@@ -20,7 +20,7 @@ from tools import get_commute_duration, get_instructions, web_search
 from arkitect.core.component.agent import DefaultAgent
 from arkitect.core.component.checkpoint import (
     InMemoryCheckpointService,
-    InMemoryCheckpointStoreSingleton,
+    InMemoryCheckpointServiceSingleton,
 )
 from arkitect.core.component.memory import (
     Mem0MemoryService as MemoryService,
@@ -90,7 +90,7 @@ async def main(request: ArkChatRequest) -> AsyncIterable[ArkChatCompletionChunk]
     )
 
     checkpoint_service: InMemoryCheckpointService = (
-        InMemoryCheckpointStoreSingleton.get_instance_sync()
+        InMemoryCheckpointServiceSingleton.get_instance_sync()
     )
     mem_service: MemoryService = Mem0MemoryServiceSingleton.get_instance_sync()
 

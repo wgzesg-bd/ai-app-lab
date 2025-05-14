@@ -70,5 +70,5 @@ class InMemoryCheckpointService(BaseCheckpointService):
             del self.checkpoints[app_name][checkpoint_id]
 
 
-class InMemoryCheckpointStoreSingleton(InMemoryCheckpointService, Singleton):
+class InMemoryCheckpointServiceSingleton(InMemoryCheckpointService, Singleton):
     pass
