@@ -15,20 +15,30 @@
 from typing import Any, List, Literal, Optional
 
 from pydantic import BaseModel, Field
+from volcenginesdkarkruntime.types.chat import ChatCompletionMessageParam
 
-from arkitect.types.llm.model import ArkChatParameters, ArkContextParameters, ArkMessage
-from arkitect.types.responses.event import StateUpdateEvent
+from arkitect.types.llm.model import ArkChatParameters, ArkContextParameters
+
+
+class ToolChunk(BaseModel):
+    tool_call_id: str
+    tool_name: str
+    tool_arguments: str
+    tool_exception: Optional[Exception] = None
+    tool_response: Any | None = None
+
+    class Config:
+        """Configuration for this pydantic object."""
+
+        arbitrary_types_allowed = True
 
 
 class State(BaseModel):
-    checkpoint_id: str = ""
-
     context_id: Optional[str] = Field(default=None)
-    messages: List[ArkMessage] = Field(default_factory=list)
+    messages: List[ChatCompletionMessageParam] = Field(default_factory=list)
     parameters: Optional[ArkChatParameters] = Field(default=None)
     context_parameters: Optional[ArkContextParameters] = Field(default=None)
-    details: dict = {}
-    events: List[StateUpdateEvent] = Field(default_factory=list)
+    details: Optional[Any] = None
 
 
 class ContextInterruption(BaseModel):

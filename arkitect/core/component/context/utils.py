@@ -16,6 +16,7 @@ from typing import Union
 
 from volcenginesdkarkruntime.types.chat import ChatCompletion, ChatCompletionChunk
 
+from arkitect.core.component.context.model import ToolChunk
 from arkitect.telemetry import logger
 from arkitect.types.llm.model import (
     ActionDetail,
@@ -24,7 +25,6 @@ from arkitect.types.llm.model import (
     BotUsage,
     ToolDetail,
 )
-from arkitect.types.responses.event import ToolChunk
 
 
 def convert_chunk(
