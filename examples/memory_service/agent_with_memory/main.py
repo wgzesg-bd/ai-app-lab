@@ -97,7 +97,7 @@ async def agent_task(
     runner = Runner(
         app_name=APP_NAME,
         agent=house_agent,
-        checkpoint_store=checkpoint_store,
+        checkpoint_service=checkpoint_store,
     )
     checkpoint_id = str(uuid.uuid4())
     checkpoint = await runner.get_or_create_checkpoint(checkpoint_id)

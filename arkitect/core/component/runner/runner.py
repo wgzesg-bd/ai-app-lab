@@ -40,17 +40,22 @@ class Runner:
         self,
         app_name: str,
         agent: BaseAgent,
-        checkpoint_store: BaseCheckpointService | None = None,
+        checkpoint_service: BaseCheckpointService | None = None,
         memory_service: BaseMemoryService | None = None,
     ):
         self.app_name = app_name
         self.agent = agent
-        self.checkpoint_service = checkpoint_store
+        self.checkpoint_service = checkpoint_service
         self.memory_service = memory_service
 
-    async def run(self, checkpoint_id: str, messages: list[ArkMessage] | None = None):
+    async def run(
+        self,
+        messages: list[ArkMessage] | None = None,
+        checkpoint_id: str = "",
+        user_id: str = "",
+    ):
         checkpoint: Checkpoint = await self.get_or_create_checkpoint(
-            checkpoint_id=checkpoint_id
+            checkpoint_id=checkpoint_id, user_id=user_id
         )
         state = checkpoint.state
         assert state
@@ -104,9 +109,11 @@ class Runner:
                     self.app_name, checkpoint.id, checkpoint
                 )
 
-    async def get_or_create_checkpoint(self, checkpoint_id: str) -> Checkpoint:
+    async def get_or_create_checkpoint(
+        self, checkpoint_id: str, user_id: str = ""
+    ) -> Checkpoint:
         if not self.checkpoint_service:
-            return Checkpoint(id=checkpoint_id)
+            return Checkpoint(id=checkpoint_id, user_id=user_id)
         checkpoint = await self.checkpoint_service.get_checkpoint(
             app_name=self.app_name, checkpoint_id=checkpoint_id
         )
@@ -114,5 +121,6 @@ class Runner:
             checkpoint = await self.checkpoint_service.create_checkpoint(
                 app_name=self.app_name,
                 checkpoint_id=checkpoint_id,
+                user_id=user_id,
             )
         return checkpoint
