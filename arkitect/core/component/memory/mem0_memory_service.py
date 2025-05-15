@@ -22,7 +22,6 @@ from mem0.embeddings.configs import EmbedderConfig
 from mem0.llms.configs import LlmConfig
 from mem0.vector_stores.configs import VectorStoreConfig
 from openai.types.responses import Response
-from pydantic import BaseModel
 from typing_extensions import override
 from volcenginesdkarkruntime import AsyncArk
 from volcenginesdkarkruntime.types.chat.chat_completion_message import (

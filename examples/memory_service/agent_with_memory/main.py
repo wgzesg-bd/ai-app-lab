@@ -14,7 +14,10 @@ import os
 import re
 import uuid
 from typing import AsyncIterable
-
+from mem0.configs.base import MemoryConfig as Mem0Config
+from mem0.embeddings.configs import EmbedderConfig
+from mem0.llms.configs import LlmConfig
+from mem0.vector_stores.configs import VectorStoreConfig
 from tools import get_commute_duration, get_instructions, web_search
 
 from arkitect.core.component.agent import DefaultAgent
@@ -40,6 +43,10 @@ MODELS = {
     "reasoning": "deepseek-r1-250120",
     "vision": "doubao-1-5-vision-pro-32k-250115",
 }
+
+DEFAULT_EMBEDDING_MODEL = "doubao-embedding-text-240715"
+DEFAULT_LLM_MODEL = "doubao-1-5-vision-pro-32k-250115"
+DEFAULT_BASE_URL = "https://ark.cn-beijing.volces.com/api/v3"
 
 APP_NAME = "property_agent"
 
@@ -92,7 +99,39 @@ async def main(request: ArkChatRequest) -> AsyncIterable[ArkChatCompletionChunk]
     checkpoint_service: InMemoryCheckpointService = (
         InMemoryCheckpointServiceSingleton.get_instance_sync()
     )
-    mem_service: MemoryService = Mem0MemoryServiceSingleton.get_instance_sync()
+
+    mem_config: Mem0Config = Mem0Config(
+        embedder=EmbedderConfig(
+            provider="openai",
+            config={
+                "model": DEFAULT_EMBEDDING_MODEL,
+                "openai_base_url": DEFAULT_BASE_URL,
+                "api_key": os.getenv("ARK_API_KEY"),
+                "embedding_dims": 2560,
+            },
+        ),
+        llm=LlmConfig(
+            provider="openai",
+            config={
+                "model": DEFAULT_LLM_MODEL,
+                "openai_base_url": DEFAULT_BASE_URL,
+                "api_key": os.getenv("ARK_API_KEY"),
+                "enable_vision": True,
+            },
+        ),
+        vector_store=VectorStoreConfig(
+            provider="chroma",
+            config={
+                "host": "localhost",
+                "port": 8000,
+                "collection_name": "mem0",
+            },
+        ),
+    )
+
+    mem_service: MemoryService = Mem0MemoryServiceSingleton.get_instance_sync(
+        mem_config
+    )
 
     if len(request.messages) == 2:
         await update_memory(
