@@ -11,8 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-from pydantic import BaseModel, ConfigDict
+import uuid
+from pydantic import BaseModel, ConfigDict, Field
 
 from arkitect.core.component.llm_event_stream.model import NewState
 
@@ -33,13 +33,13 @@ class Checkpoint(BaseModel):
         arbitrary_types_allowed=True,
     )
 
-    id: str
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     """The unique identifier of the checkpoint."""
     app_name: str
     """The name of the app."""
     user_id: str
     """The user id of the checkpoint."""
-    state: NewState | None = None
+    state: NewState = Field(default_factory=NewState)
     """The state of the checkpoint."""
     last_update_time: float = 0.0
     """The last update time of the checkpoint."""

@@ -54,21 +54,23 @@ class Runner:
     async def run(
         self,
         messages: list[ArkMessage] | None = None,
-        checkpoint_id: str = "",
+        checkpoint_id: str | None = None,
+        state: NewState | None = None,
         user_id: str = "",
     ):
         checkpoint: Checkpoint = await self.get_or_create_checkpoint(
             checkpoint_id=checkpoint_id, user_id=user_id
         )
-        state = checkpoint.state
-        assert state
-        async for chunk in self.__run(state, checkpoint, messages):
+        if state is not None:
+            checkpoint.state = state
+        async for chunk in self.__run(checkpoint.state, checkpoint, messages):
             if isinstance(chunk, BaseEvent):
                 yield chunk
 
     async def store_memory(self, user_id: str, event: StateUpdateEvent):
         if (
             event.message_delta
+            and len(event.message_delta) > 0
             and self.config.memory_update_behavior != MemoryUpdateSetting.NO_AUTO_UPDATE
         ):
             await self.memory_service.update_memory(
@@ -84,7 +86,7 @@ class Runner:
         if isinstance(event, StateUpdateEvent):
             if event.details_delta is not None:
                 state.details.update(event.details_delta)
-            if event.message_delta is not None:
+            if event.message_delta is not None and len(event.message_delta) > 0:
                 state.events.append(event)
             if self.checkpoint_service:
                 await self.checkpoint_service.update_checkpoint(
@@ -121,10 +123,14 @@ class Runner:
                 )
 
     async def get_or_create_checkpoint(
-        self, checkpoint_id: str, user_id: str = ""
+        self, checkpoint_id: str | None, user_id: str = ""
     ) -> Checkpoint:
         if not self.checkpoint_service:
-            return Checkpoint(id=checkpoint_id, user_id=user_id)
+            if checkpoint_id:
+                return Checkpoint(
+                    id=checkpoint_id, app_name=self.app_name, user_id=user_id
+                )
+            return Checkpoint(app_name=self.app_name, user_id=user_id)
         checkpoint = await self.checkpoint_service.get_checkpoint(
             app_name=self.app_name, checkpoint_id=checkpoint_id
         )

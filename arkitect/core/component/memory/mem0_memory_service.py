@@ -111,10 +111,11 @@ class Mem0MemoryService(BaseMemoryService):
         self,
         user_id: str,
         query: str,
+        limit: int = 3,
         **kwargs: Any,
     ) -> SearchMemoryResponse:
         relevant_memories = await self.memory.search(
-            query=query, user_id=user_id, limit=3
+            query=query, user_id=user_id, limit=limit
         )
         fetched_results = relevant_memories.get("results", [])
         memeory_string = ""

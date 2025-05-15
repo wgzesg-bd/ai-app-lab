@@ -21,7 +21,9 @@ from typing import (
     List,
     Optional,
 )
-
+from arkitect.core.component.tool.utils import (
+    convert_to_chat_completion_content_part_param,
+)
 from volcenginesdkarkruntime import AsyncArk
 from volcenginesdkarkruntime.types.chat import (
     ChatCompletionMessageParam,
@@ -29,14 +31,9 @@ from volcenginesdkarkruntime.types.chat import (
 from volcenginesdkarkruntime.types.context import CreateContextResponse
 
 from arkitect.core.client import default_ark_client
-from arkitect.core.component.agent import BaseAgent
-from arkitect.core.component.context.hooks import (
-    HookInterruptException,
-    PostLLMCallHook,
-    PostToolCallHook,
-    PreLLMCallHook,
-    PreToolCallHook,
-)
+
+# from arkitect.core.component.agent.base_agent import BaseAgent
+
 from arkitect.core.component.tool.mcp_client import MCPClient
 from arkitect.core.component.tool.tool_pool import ToolPool, build_tool_pool
 from arkitect.types.llm.model import (
@@ -50,7 +47,13 @@ from arkitect.types.responses.event import (
     ToolCallEvent,
     ToolCompletedEvent,
 )
-
+from .hooks import (
+    HookInterruptException,
+    PostLLMCallHook,
+    PostToolCallHook,
+    PreLLMCallHook,
+    PreToolCallHook,
+)
 from .chat_completion import _AsyncChat
 from .context_completion import _AsyncContext
 from .model import ContextInterruption, NewState
@@ -170,12 +173,13 @@ class _AsyncCompletionsEventStream:
             tool_resp = await self._ctx.tool_pool.execute_tool(  # type: ignore
                 tool_name=tool_name, parameters=json.loads(parameters)
             )
+            tool_resp = convert_to_chat_completion_content_part_param(tool_resp)
         except Exception as e:
             tool_exception = e
         return tool_resp, tool_exception
 
     def need_tool_call(self) -> bool:
-        last_message = self._ctx.get_latest_message()
+        last_message = self._ctx.get_latest_message(role=None)
         if (
             last_message is not None
             and last_message.tool_calls
@@ -185,10 +189,9 @@ class _AsyncCompletionsEventStream:
         return False
 
     async def tool_call_stream(self) -> AsyncIterable[BaseEvent]:
-        tool_calls = self._ctx.get_latest_message().tool_calls  # type: ignore
+        tool_calls = self._ctx.get_latest_message(role=None).tool_calls  # type: ignore
         for tool_call in tool_calls:
             tool_name = tool_call.function.name
-            arguments = tool_call.function.arguments
             if self._ctx.pre_tool_call_hook:
                 for event in self._ctx.pre_tool_call_hook.pre_tool_call(
                     self._ctx.state
@@ -227,29 +230,34 @@ class _AsyncCompletionsEventStream:
                     yield event
 
     def need_agent_call(self) -> bool:
-        last_message = self._ctx.get_latest_message()
+        last_message = self._ctx.get_latest_message(role=None)
         if last_message is not None and last_message.tool_calls:
-            if "switch_agent" in last_message.tool_calls[0].function.name:
+            if "handoff" in last_message.tool_calls[0].function.name:
+                return True
+            # TODO: Hack due to model performance
+            elif self.get_agent(last_message.tool_calls[0].function.name):
                 return True
         return False
 
     async def agent_call_stream(self) -> AsyncIterable[BaseEvent]:
-        tool_calls = self._ctx.get_latest_message().tool_calls  # type: ignore
+        tool_calls = self._ctx.get_latest_message(role=None).tool_calls  # type: ignore
         agent_call = tool_calls[0]
         tool_name = agent_call.function.name
         arguments = agent_call.function.arguments
-        assert tool_name == "switch_agent"
+        # TODO hack due to model performance
         agent_name = json.loads(arguments).get("agent_name")
         if agent_name is None:
-            raise ValueError("agent_name is None")
+            agent_name = tool_name
         agent = self.get_agent(agent_name)
+        if agent is None:
+            raise Exception(f"Agent {agent_name} not found")
         yield StateUpdateEvent(
             message_delta=[
                 ArkMessage(
                     **{
                         "role": "tool",
                         "tool_call_id": agent_call.id,
-                        "content": f"切换到{agent_name}Agent",
+                        "content": f"切换到{agent_name}",
                     }
                 )
             ]
@@ -257,14 +265,17 @@ class _AsyncCompletionsEventStream:
         async for event in agent(self._ctx.state):
             yield event
 
-    def get_agent(self, agent_name: str) -> BaseAgent:
+    def get_agent(self, agent_name: str) -> "BaseAgent":
+        if self._ctx.sub_agents is None:
+            return None
         for agent in self._ctx.sub_agents:
             if agent.name == agent_name:
                 return agent
+        return None
 
 
-def build_switch_agent(agents: list[BaseAgent]):
-    def switch_agent(agent_name: str):
+def build_handoff(agents: list["BaseAgent"]):
+    def handoff(agent_name: str):
         return agent_name
 
     agents_desc = ""
@@ -272,19 +283,19 @@ def build_switch_agent(agents: list[BaseAgent]):
     for agent in agents:
         agents_desc += f"{agent.name}: {agent.description}\n"
 
-    switch_agent.__doc__ = f"""你可以通过调用此函数 switch_agent 将任务切换给其他Agent。
+    handoff.__doc__ = f"""你可以通过调用此函数 handoff 将任务切换给其他Agent。
     
     agent_name列表及其功能如下所述：
     {agents_desc}
     
-    请你根据上面这些agent的描述和目前所在的任务，调用switch_agent 这个方法
+    请你根据上面这些agent的描述和目前所在的任务，调用handoff 这个方法
     来决定要切换到哪个Agent。不要输出任何其他内容。
 
     参数说明：
         •	agent_name(str)：要切换到的Agent名称。
     """
 
-    return switch_agent
+    return handoff
 
 
 class LLMEventStream:
@@ -295,7 +306,7 @@ class LLMEventStream:
         agent_name: str,
         state: NewState | None = None,
         tools: list[MCPClient | Callable] | ToolPool | None = None,
-        sub_agents: list[BaseAgent] | None = None,
+        sub_agents: list["BaseAgent"] | None = None,
         parameters: Optional[ArkChatParameters] = None,
         context_parameters: Optional[ArkContextParameters] = None,
         client: Optional[AsyncArk] = None,
@@ -321,7 +332,7 @@ class LLMEventStream:
         self.sub_agents = sub_agents
         full_tools = []
         if self.sub_agents and len(self.sub_agents) > 0:
-            full_tools = [build_switch_agent(self.sub_agents)]
+            full_tools = [build_handoff(self.sub_agents)]
         if tools and len(tools) > 0:
             full_tools.extend(tools)
         self.tool_pool = build_tool_pool(full_tools)
@@ -345,10 +356,14 @@ class LLMEventStream:
             await self.tool_pool.refresh_tool_list()
         return
 
-    def get_latest_message(self, role: str = "assistant") -> Optional[ArkMessage]:
+    def get_latest_message(
+        self, role: str | None = "assistant"
+    ) -> Optional[ArkMessage]:
         for evt in reversed(self.state.events):
             if evt.message_delta:
                 for m in evt.message_delta:
+                    if role is None:
+                        return m
                     if m.role == role:
                         return m
         return None
