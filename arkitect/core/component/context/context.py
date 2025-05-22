@@ -43,15 +43,19 @@ from arkitect.core.component.context.hooks import (
 )
 from arkitect.core.component.tool.mcp_client import MCPClient
 from arkitect.core.component.tool.tool_pool import ToolPool, build_tool_pool
-from arkitect.telemetry.trace import task
+from arkitect.core.component.tool.utils import (
+    convert_to_chat_completion_content_part_param,
+)
+from arkitect.telemetry.trace.wrapper import task
 from arkitect.types.llm.model import (
     ArkChatParameters,
     ArkContextParameters,
 )
+from arkitect.types.responses.event import ToolChunk
 
 from .chat_completion import _AsyncChat
 from .context_completion import _AsyncContext
-from .model import ContextInterruption, State, ToolChunk
+from .model import ContextInterruption, State
 
 
 class _AsyncCompletions:
@@ -63,7 +67,7 @@ class _AsyncCompletions:
     async def handle_tool_call(self) -> bool:
         last_message = self._ctx.get_latest_message()
         if last_message is None or not last_message.get("tool_calls"):
-            return True
+            return False
         if self._ctx.tool_pool is None:
             return False
         for tool_call in last_message.get("tool_calls"):
@@ -86,6 +90,7 @@ class _AsyncCompletions:
                     tool_resp = await self._ctx.tool_pool.execute_tool(
                         tool_name=tool_name, parameters=json.loads(parameters)
                     )
+                    tool_resp = convert_to_chat_completion_content_part_param(tool_resp)
                 except Exception as e:
                     tool_exception = e
 
@@ -170,7 +175,7 @@ class _AsyncCompletions:
                     )
 
                 try:
-                    if await self.handle_tool_call():
+                    if not await self.handle_tool_call():
                         break
                 except HookInterruptException as he:
                     return ContextInterruption(
@@ -279,6 +284,7 @@ class _AsyncCompletions:
             tool_resp = await self._ctx.tool_pool.execute_tool(  # type: ignore
                 tool_name=tool_name, parameters=json.loads(parameters)
             )
+            tool_resp = convert_to_chat_completion_content_part_param(tool_resp)
         except Exception as e:
             tool_exception = e
         return tool_resp, tool_exception

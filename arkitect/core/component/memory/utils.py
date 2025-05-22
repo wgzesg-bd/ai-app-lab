@@ -17,23 +17,13 @@ from volcenginesdkarkruntime.types.chat.chat_completion_message import (
     ChatCompletionMessage,
 )
 
-from arkitect.types.llm.model import ArkMessage
-
-
-def _ark_message_to_string(messages: list[ArkMessage | dict]) -> str:
-    content = ""
-    for message in messages:
-        if isinstance(message, ArkMessage):
-            content += f"{message.role}: {message.content}\n"
-        elif isinstance(message, dict):
-            content += f"{message['role']}: {message['content']}\n"
-    return content
+from arkitect.types.llm.model import Message
 
 
 def format_message_as_string(
-    message: ArkMessage | dict | Response | ChatCompletionMessage,
+    message: Message | dict | Response | ChatCompletionMessage,
 ) -> str:
-    if isinstance(message, ArkMessage):
+    if isinstance(message, Message):
         return f"{message.role}: {message.content}\n"
     elif isinstance(message, dict):
         return f"{message['role']}: {message['content']}\n"
@@ -46,9 +36,9 @@ def format_message_as_string(
 
 
 def format_message_as_dict(
-    message: ArkMessage | dict | Response | ChatCompletionMessage,
+    message: Message | dict | Response | ChatCompletionMessage,
 ) -> dict:
-    if isinstance(message, ArkMessage):
+    if isinstance(message, Message):
         return message.model_dump()
     elif isinstance(message, dict):
         return message

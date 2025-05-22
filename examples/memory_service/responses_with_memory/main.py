@@ -1,17 +1,9 @@
 import logging
 import os
-import re
 import time
 from typing import AsyncIterable
 
 import volcenginesdkarkruntime.types.chat.chat_completion_chunk as completion_chunk
-from openai import OpenAI
-from openai.types.responses.response_stream_event import (
-    ResponseStreamEvent,
-    ResponseTextDeltaEvent,
-    ResponseCompletedEvent,
-)
-
 from arkitect.core.component.memory import (
     Mem0MemoryService as MemoryService,
 )  # InMemoryMemoryServiceSingleton,; InMemoryMemoryService as MemoryService,
@@ -25,11 +17,54 @@ from arkitect.core.component.memory import Mem0MemoryServiceSingleton
 # )
 from arkitect.launcher.local.serve import launch_serve
 from arkitect.telemetry.trace import task
-from arkitect.types.llm.model import ArkChatCompletionChunk, ArkChatRequest, ArkMessage
-from responses_client import (
-    ResponsesClientWithLongTermMemory,
+from arkitect.types.llm.model import ArkChatCompletionChunk, ArkChatRequest
+from mem0.configs.base import MemoryConfig as Mem0Config
+from mem0.embeddings.configs import EmbedderConfig
+from mem0.llms.configs import LlmConfig
+from mem0.vector_stores.configs import VectorStoreConfig
+from openai import OpenAI
+from openai.types.responses.response_stream_event import (
+    ResponseCompletedEvent,
+    ResponseStreamEvent,
+    ResponseTextDeltaEvent,
 )
-from openai.types.responses.response_input_param import ResponseInputParam
+from responses_client import ResponsesClientWithLongTermMemory
+
+DEFAULT_EMBEDDING_MODEL = "doubao-embedding-text-240715"
+DEFAULT_LLM_MODEL = "doubao-1-5-vision-pro-32k-250115"
+DEFAULT_BASE_URL = "https://ark.cn-beijing.volces.com/api/v3"
+
+
+default_ark_config = Mem0Config(
+    embedder=EmbedderConfig(
+        provider="openai",
+        config={
+            "model": DEFAULT_EMBEDDING_MODEL,
+            "openai_base_url": DEFAULT_BASE_URL,
+            "api_key": os.getenv("ARK_API_KEY"),
+            "embedding_dims": 2560,
+        },
+    ),
+    llm=LlmConfig(
+        provider="openai",
+        config={
+            "model": DEFAULT_LLM_MODEL,
+            "openai_base_url": DEFAULT_BASE_URL,
+            "api_key": os.getenv("ARK_API_KEY"),
+            "enable_vision": True,
+        },
+    ),
+    vector_store=VectorStoreConfig(
+        provider="vikingdb",
+        config={
+            "collection_name": "mem0_test",
+            "embedding_model_dims": 2560,
+            "metric_type": "IP",
+            "ak": os.getenv("VOLC_ACCESSKEY"),
+            "sk": os.getenv("VOLC_SECRETKEY"),
+        },
+    ),
+)
 
 
 def convert_chunk(chunk: ResponseStreamEvent) -> ArkChatCompletionChunk | None:
@@ -61,7 +96,10 @@ def convert_chunk(chunk: ResponseStreamEvent) -> ArkChatCompletionChunk | None:
 
 @task(distributed=False)
 async def main(request: ArkChatRequest) -> AsyncIterable[ArkChatCompletionChunk]:
-    mem_service: MemoryService = Mem0MemoryServiceSingleton.get_instance_sync()
+
+    mem_service: MemoryService = Mem0MemoryServiceSingleton.get_instance_sync(
+        default_ark_config
+    )
 
     user_id = request.metadata["user_id"]
     previous_resp_id = request.metadata.get("previous_response_id")

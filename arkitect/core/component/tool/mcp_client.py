@@ -11,17 +11,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import sys
 import asyncio
 import datetime
+from datetime import timedelta
 import logging
 from contextlib import AsyncExitStack
-from typing import Any, Dict
+from typing import Any, Dict, TextIO
 
-from volcenginesdkarkruntime.types.chat import ChatCompletionContentPartParam
 
 from arkitect.core.component.tool.utils import (
-    convert_to_chat_completion_content_part_param,
     mcp_to_chat_completion_tool,
 )
 from arkitect.telemetry.trace import task
@@ -34,6 +33,9 @@ from mcp import (
 )
 from mcp.client.sse import sse_client
 from mcp.client.stdio import get_default_environment
+from mcp.client.streamable_http import streamablehttp_client
+from mcp.types import CallToolResult
+
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +52,8 @@ class MCPClient:
         timeout: float = 30,
         sse_read_timeout: float = 60 * 5,
         exit_stack: AsyncExitStack | None = None,
+        transport: str | None = None,
+        errlog: TextIO | None = sys.stderr,
     ) -> None:
         self.command = command
         self.arguments = arguments
@@ -58,6 +62,8 @@ class MCPClient:
         self.headers = headers
         self.timeout: float = timeout
         self.sse_read_timeout = sse_read_timeout
+        self.transport = transport
+        self.errlog = errlog
 
         # Initialize session and client objects
         self.session: ClientSession = None  # type: ignore
@@ -78,7 +84,10 @@ class MCPClient:
         if self.command is not None and self.server_url is not None:
             raise ValueError("You should set either command or server_url")
         if self.server_url is not None:
-            await self._connect_to_sse_server()
+            if self.transport == "streamable-http":
+                await self._connect_to_streamablehttp_server()
+            else:
+                await self._connect_to_sse_server()
         elif self.command is not None:
             await self._connect_to_stdio_server()
         else:
@@ -105,7 +114,7 @@ class MCPClient:
         )
 
         stdio_transport = await self.exit_stack.enter_async_context(
-            stdio_client(server_params)
+            stdio_client(server_params, self.errlog)
         )
         stdio_read, stdio_write = stdio_transport
         self.session = await self.exit_stack.enter_async_context(
@@ -132,6 +141,25 @@ class MCPClient:
 
         self.session = await self.exit_stack.enter_async_context(
             ClientSession(*streams)
+        )
+
+    async def _connect_to_streamablehttp_server(
+        self,
+    ) -> None:
+        """Connect to an MCP server running with streamable http transport"""
+        streams = await self.exit_stack.enter_async_context(
+            streamablehttp_client(
+                url=self.server_url,  # type: ignore
+                headers=self.headers,
+                timeout=timedelta(seconds=self.timeout),
+                sse_read_timeout=timedelta(seconds=self.sse_read_timeout),
+            )
+        )
+
+        read, write, _ = streams
+
+        self.session = await self.exit_stack.enter_async_context(
+            ClientSession(read, write)
         )
 
     async def _init(self) -> None:
@@ -202,7 +230,7 @@ class MCPClient:
         self,
         tool_name: str,
         parameters: dict[str, Any],
-    ) -> str | list[ChatCompletionContentPartParam]:
+    ) -> CallToolResult:
         async with self._lock:
             if self.session is None:
                 logger.warning(
@@ -210,7 +238,7 @@ class MCPClient:
                 )
                 await self.connect_to_server()
             result = await self.session.call_tool(tool_name, parameters)
-            return convert_to_chat_completion_content_part_param(result)
+            return result
 
     @task()
     async def get_tool(self, tool_name: str, use_cache: bool = True) -> Tool | None:

@@ -16,13 +16,19 @@ import asyncio
 import os
 from typing import Any
 
+try:
+    import mem0
+except ImportError:
+    raise ImportError(
+        "Could not import mem0 python package. "
+        "Please install it with `pip install mem0`."
+    )
 from mem0 import AsyncMemory as Mem0Memory
 from mem0.configs.base import MemoryConfig as Mem0Config
 from mem0.embeddings.configs import EmbedderConfig
 from mem0.llms.configs import LlmConfig
 from mem0.vector_stores.configs import VectorStoreConfig
 from openai.types.responses import Response
-from pydantic import BaseModel
 from typing_extensions import override
 from volcenginesdkarkruntime import AsyncArk
 from volcenginesdkarkruntime.types.chat.chat_completion_message import (
@@ -36,7 +42,7 @@ from arkitect.core.component.memory.base_memory_service import (
 )
 from arkitect.core.component.memory.utils import format_message_as_dict
 from arkitect.telemetry.logger import ERROR, INFO
-from arkitect.types.llm.model import ArkMessage
+from arkitect.types.llm.model import Message
 from arkitect.utils.common import Singleton
 
 DEFAULT_EMBEDDING_MODEL = "doubao-embedding-text-240715"
@@ -60,6 +66,7 @@ default_ark_config = Mem0Config(
             "model": DEFAULT_LLM_MODEL,
             "openai_base_url": DEFAULT_BASE_URL,
             "api_key": os.getenv("ARK_API_KEY"),
+            "enable_vision": True,
         },
     ),
     vector_store=VectorStoreConfig(config={"embedding_model_dims": 2560}),
@@ -78,7 +85,7 @@ class Mem0MemoryService(BaseMemoryService):
     async def update_memory(
         self,
         user_id: str,
-        new_messages: list[ArkMessage | dict | Response | ChatCompletionMessage],
+        new_messages: list[Message | dict | Response | ChatCompletionMessage],
         blocking: bool = False,
         **kwargs: Any,
     ) -> None:
@@ -111,10 +118,11 @@ class Mem0MemoryService(BaseMemoryService):
         self,
         user_id: str,
         query: str,
+        limit: int = 3,
         **kwargs: Any,
     ) -> SearchMemoryResponse:
         relevant_memories = await self.memory.search(
-            query=query, user_id=user_id, limit=3
+            query=query, user_id=user_id, limit=limit
         )
         fetched_results = relevant_memories.get("results", [])
         memeory_string = ""
